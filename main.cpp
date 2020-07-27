@@ -1,8 +1,11 @@
 #include <iostream>
 #include <vector>
+#include <cmath>
 #include <CL/cl.h>
 
 using namespace std;
+const int width = 4;
+//const int width = 16;
 
 #define check_error(status, msg)	\
 	if(status != CL_SUCCESS) {		\
@@ -13,6 +16,32 @@ using namespace std;
 void callback(const char* errInfo, const void*, size_t, void*) {
 	cout << "Context callback errInfo:\t" << errInfo << endl;
 }
+
+template <typename T>
+void validateBuffer(T* buffer, size_t buffsize) {
+	for(size_t i=0; i<buffsize; ++i) {
+		if(i % width == 0)
+			std::cout << std::endl;
+		std::cout << buffer[i] << " ";
+	}
+	std::cout << std::endl;
+}
+template <typename T>
+void checkResults(T* ha, T* hb, size_t rowA, size_t colA, size_t colB) {
+	std::cout << "\ncheckResults:" << std::endl;
+	for(size_t i=0; i<rowA; ++i) {
+		for(size_t j=0; j<colB; ++j) {
+			float sum = 0.0f;
+			for(size_t k=0; k<colA; ++k) {
+				sum += ha[i*colA + k] * hb[k*colB + j];
+			}
+			std::cout << sum << " ";
+		}
+		std::cout << std::endl;
+	}
+	std::cout << std::endl;
+}
+
 
 void loadProgramSource(const char** files, size_t number, char** buffer, size_t* sizes) {
 	cout << "loadProgramSource" << endl;
@@ -229,7 +258,8 @@ void clinfo() {
 	cl_int numCL = 1;
 	size_t kernel_sizes[numCL];
 	char* kernel_buffers[numCL];
-	const char* kernel_files[numCL] = {"compute_distance.cl"};
+	//const char* kernel_files[numCL] = {"compute_distance.cl"};
+	const char* kernel_files[numCL] = {"../compute_distance.cl"};
 	loadProgramSource(kernel_files, numCL, kernel_buffers, kernel_sizes);
 
 	cl_program program = clCreateProgramWithSource(context, numCL, (const char**)kernel_buffers, kernel_sizes, &status);
@@ -255,8 +285,36 @@ void clinfo() {
 	cout << "kernel created." << endl;
 	
 	// buffer
+	cl_int vector_dims = 16;
+	cl_int colA = sqrt(vector_dims);
+	cl_int rowA = sqrt(vector_dims);
+	cl_int colB = sqrt(vector_dims);
+	float ha[vector_dims];
+	float hb[vector_dims];
+	float hc[vector_dims];
+	for(cl_int i=0; i<vector_dims; ++i) {
+		ha[i] = (float) (i+1);
+		hb[i] = (float) (i+1);
+		hc[i] = (float) (0);
+	}
+	validateBuffer(ha, vector_dims);
+	validateBuffer(hb, vector_dims);
+	validateBuffer(hc, vector_dims);
+	checkResults(ha, hb, rowA, colA, colB);
 
 	// kernel args
+	cl_mem da = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, sizeof(float) * vector_dims, ha, &status);
+	cl_mem db = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, sizeof(float) * vector_dims, hb, &status);
+	cl_mem dc = clCreateBuffer(context, CL_MEM_WRITE_ONLY, sizeof(float) * vector_dims, NULL, &status);
+
+	status |= clSetKernelArg(kernel, 0, sizeof(cl_mem), (void*) &da);
+	status |= clSetKernelArg(kernel, 1, sizeof(cl_mem), (void*) &db);
+	status |= clSetKernelArg(kernel, 2, sizeof(cl_mem), (void*) &dc);
+	check_error(status, "Failed to set kernel arg 2");
+
+	status |= clSetKernelArg(kernel, 3, sizeof(cl_int), (void*) &colA);
+	status |= clSetKernelArg(kernel, 4, sizeof(cl_int), (void*) &colB);
+	check_error(status, "Failed to set kernel args.");
 
 	// enqueue
 	cl_int dim = 2;
@@ -267,6 +325,13 @@ void clinfo() {
 
 	// finish
 	status |= clFinish(queue);
+
+	// read
+	status |= clEnqueueReadBuffer(queue, dc, CL_TRUE, 0, sizeof(float) * vector_dims, hc, 0, NULL, NULL);
+	check_error(status, "Failed to read buffer from device.");
+	cout << "Read from device buffer." << endl;
+	validateBuffer(hc, vector_dims);
+
 	// release
 	if(kernel) {
 		clReleaseKernel(kernel);  
