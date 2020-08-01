@@ -6,6 +6,12 @@ add_executable(${PROJECT_NAME} main.cpp)
 
 find_package(OpenCL REQUIRED)
 
+add_definitions(-std=c++11)
+#add_compile_options(-mavx2)
+add_definitions(-mpopcnt -mavx2)
+#add_definitions(-mavx512f -mavx512dq)
+#add_definitions(-mmmx -msse -msse2 -msse3 -mssse3 -msse4.1 -msse4.2 -mpopcnt -mavx -mfma -mavx2 -mfpmath=both)
+
 target_include_directories(${PROJECT_NAME} PRIVATE ${OpenCL_INCLUDE_DIR})
 target_link_libraries(${PROJECT_NAME} OpenCL)
 
