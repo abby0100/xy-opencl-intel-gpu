@@ -1,0 +1,4 @@
+#!/bin/bash
+
+	#docker run --name xyubuntu1804-clinfo -it -v /home/xy18/yuan:/home/xy18/yuan xyubuntu1804-clinfo:latest
+	docker run --name xyubuntu1804-opencl -it -v /home/xy18/yuan:/home/xy18/yuan xyubuntu1804-opencl:latest /bin/bash
